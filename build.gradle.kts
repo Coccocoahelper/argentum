@@ -208,7 +208,8 @@ tasks.remapJar {
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
-            artifact(tasks.remapJar)
+            from(components["java"])
+            setArtifacts(listOf(tasks.remapJar))
         }
     }
     repositories {
