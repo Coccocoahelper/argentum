@@ -14,6 +14,7 @@ import dev.rdh.argentum.impl.render.blockentity.BakedBlockEntities;
 import dev.rdh.argentum.impl.render.entity.EntityOcclusionCuller;
 import dev.rdh.argentum.impl.render.entity.EntityGatherer;
 import dev.rdh.argentum.impl.render.entity.EntityShadowBatch;
+import dev.rdh.argentum.impl.render.entity.NameTagBatch;
 import dev.rdh.argentum.impl.render.entity.instancing.EntityInstancing;
 import dev.rdh.argentum.impl.render.entity.instancing.ModelInstancer;
 import dev.rdh.argentum.impl.render.environment.WeatherRenderer;
@@ -47,6 +48,7 @@ public class ArgentumWorldRenderer extends SimpleWorldRenderer<World, ArgentumRe
     private final EntityGatherer entityGatherer = new EntityGatherer();
     private final EntityOcclusionCuller entityOcclusionCuller = new EntityOcclusionCuller(this);
     private final EntityShadowBatch entityShadowBatch = new EntityShadowBatch();
+    private final NameTagBatch nameTagBatch = new NameTagBatch();
     private final ModelInstancer modelInstancer = new ModelInstancer();
     private final EntityInstancing entityInstancing = new EntityInstancing(this.modelInstancer);
     private final WeatherRenderer weatherRenderer = new WeatherRenderer();
@@ -112,6 +114,10 @@ public class ArgentumWorldRenderer extends SimpleWorldRenderer<World, ArgentumRe
 
     public EntityInstancing getEntityInstancing() {
         return this.entityInstancing;
+    }
+
+    public NameTagBatch getNameTagBatch() {
+        return this.nameTagBatch;
     }
 
     public EntityShadowBatch getEntityShadowBatch() {
@@ -220,6 +226,7 @@ public class ArgentumWorldRenderer extends SimpleWorldRenderer<World, ArgentumRe
         int rendered = 0;
         boolean isSelfSleeping = minecraft.getCamera() instanceof LivingEntity living && living.isSleeping();
         BlockPos.Mutable entityBlockPos = new BlockPos.Mutable();
+        this.nameTagBatch.begin(this.matrices.modelView());
         try {
             for (Entity entity : entities) {
                 boolean inFrustum = dispatcher.shouldRender(entity, culler, cameraX, cameraY, cameraZ);
@@ -248,6 +255,7 @@ public class ArgentumWorldRenderer extends SimpleWorldRenderer<World, ArgentumRe
             }
         } catch (RuntimeException | Error exception) {
             this.entityInstancing.discardBatch();
+            this.nameTagBatch.discard();
             throw exception;
         }
         RenderDevice.enterManagedCode();
@@ -260,6 +268,7 @@ public class ArgentumWorldRenderer extends SimpleWorldRenderer<World, ArgentumRe
             RenderDevice.exitManagedCode();
         }
         this.entityInstancing.renderNameTags();
+        this.nameTagBatch.end();
         return rendered;
     }
 

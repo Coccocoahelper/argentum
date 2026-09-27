@@ -1,6 +1,7 @@
 package dev.rdh.argentum.impl.render.gui;
 
 import dev.rdh.argentum.impl.Argentum;
+import dev.rdh.argentum.impl.render.entity.NameTagBatch;
 
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
@@ -78,6 +79,7 @@ public final class TextBatcher {
     private float originY;
 
     private int elementBatchDepth;
+    private NameTagBatch nameTags;
     private Runnable beforeImmediateText;
 
     private int endStyle;
@@ -237,12 +239,16 @@ public final class TextBatcher {
         this.pendingKey = null;
         this.pendingSegments.clear();
         this.appendable = false;
+        this.nameTags = NameTagBatch.capturing();
 
-        if (!this.batching || !cacheable(text) || (style & UNCACHEABLE_STYLE) != 0) {
+        if (!this.batching || !cacheable(text) || (style & UNCACHEABLE_STYLE) != 0
+                || this.nameTags != null && !this.nameTags.canCaptureText()) {
             this.flushElementBatch(textureManager);
+            if (this.nameTags != null) this.nameTags.flush();
+            this.nameTags = null;
             return Float.NaN;
         }
-        this.appendable = this.elementBatchDepth > 0;
+        this.appendable = this.elementBatchDepth > 0 || this.nameTags != null;
 
         GeometryKey key = this.lookupKey.set(text, shadow, style,
                 Float.floatToIntBits(this.red), Float.floatToIntBits(this.green), Float.floatToIntBits(this.blue)
@@ -526,6 +532,10 @@ public final class TextBatcher {
     }
 
     private void append(Identifier texture, int[] vertices, float x, float y) {
+        if (this.nameTags != null) {
+            this.nameTags.text(texture, vertices, x, y);
+            return;
+        }
         BufferBuilder buffer = this.elementBuffers.get(texture);
         if (buffer == null) {
             buffer = new BufferBuilder(32 * 1024 / Integer.BYTES);

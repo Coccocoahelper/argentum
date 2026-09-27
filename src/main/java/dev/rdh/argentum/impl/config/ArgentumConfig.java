@@ -12,6 +12,7 @@ public class ArgentumConfig {
     public boolean entityCulling = true;
     public boolean entityInstancing = true;
     public boolean bakeBlockEntities = true;
+    public boolean nameTagBatching = true;
     public int entityOcclusionIntervalMs = 50;
     public boolean particleCulling = true;
     public boolean blockFaceCulling = true;

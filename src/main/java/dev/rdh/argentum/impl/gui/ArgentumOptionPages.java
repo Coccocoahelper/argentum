@@ -68,6 +68,7 @@ public final class ArgentumOptionPages {
         private static final OptionIdentifier<Void> PARTICLE_CULLING = OptionIdentifier.create(Argentum.ID, "particle_culling");
         private static final OptionIdentifier<Void> ENTITY_INSTANCING = OptionIdentifier.create(Argentum.ID, "entity_instancing");
         private static final OptionIdentifier<Void> BAKE_BLOCK_ENTITIES = OptionIdentifier.create(Argentum.ID, "bake_block_entities");
+        private static final OptionIdentifier<Void> NAME_TAG_BATCHING = OptionIdentifier.create(Argentum.ID, "name_tag_batching");
         private static final OptionIdentifier<Void> FONT_BATCHING = OptionIdentifier.create(Argentum.ID, "font_batching");
         private static final OptionIdentifier<Void> GUI_ITEM_ATLAS = OptionIdentifier.create(Argentum.ID, "gui_item_atlas");
         private static final OptionIdentifier<Void> SAFE_CHUNK_EDGES = OptionIdentifier.create(Argentum.ID, "safe_chunk_edges");
@@ -318,6 +319,12 @@ public final class ArgentumOptionPages {
                 .add(toggle(Option.BAKE_BLOCK_ENTITIES, OptionImpact.HIGH,
                         (config, value) -> config.bakeBlockEntities = value, config -> config.bakeBlockEntities,
                         OptionFlag.REQUIRES_RENDERER_RELOAD))
+                .add(option(boolean.class, CONFIG_STORAGE, Option.NAME_TAG_BATCHING)
+                        .setControl(TickBoxControl::new)
+                        .setBinding((config, value) -> config.nameTagBatching = value, config -> config.nameTagBatching)
+                        .setEnabledPredicate(() -> CONFIG.fontBatching)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .build())
                 .add(toggle(StandardOptions.Option.ANIMATE_VISIBLE_TEXTURES,
                         OptionImpact.HIGH,
                         (config, value) -> config.animateOnlyVisibleTextures = value,

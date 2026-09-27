@@ -20,3 +20,13 @@ accessible class net/minecraft/client/render/platform/GlStateManager$Color
 accessible class net/minecraft/client/render/platform/GlStateManager$Blend
 accessible field net/minecraft/client/render/platform/GlStateManager BLEND Lnet/minecraft/client/render/platform/GlStateManager$Blend;
 accessible field net/minecraft/client/render/platform/GlStateManager COLOR Lnet/minecraft/client/render/platform/GlStateManager$Color;
+accessible class net/minecraft/client/render/platform/GlStateManager$Depth
+accessible class net/minecraft/client/render/platform/GlStateManager$Alpha
+accessible class net/minecraft/client/render/platform/GlStateManager$Cull
+accessible class net/minecraft/client/render/platform/GlStateManager$Texture
+accessible field net/minecraft/client/render/platform/GlStateManager DEPTH Lnet/minecraft/client/render/platform/GlStateManager$Depth;
+accessible field net/minecraft/client/render/platform/GlStateManager ALPHA_TEST Lnet/minecraft/client/render/platform/GlStateManager$Alpha;
+accessible field net/minecraft/client/render/platform/GlStateManager CULL Lnet/minecraft/client/render/platform/GlStateManager$Cull;
+accessible field net/minecraft/client/render/platform/GlStateManager LIGHTING Lnet/minecraft/client/render/platform/GlStateManager$GlState;
+accessible field net/minecraft/client/render/platform/GlStateManager TEXTURES [Lnet/minecraft/client/render/platform/GlStateManager$Texture;
+accessible field net/minecraft/client/render/platform/GlStateManager texture I
