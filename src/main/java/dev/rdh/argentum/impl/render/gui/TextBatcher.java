@@ -39,11 +39,8 @@ public final class TextBatcher {
     public static final int STRIKETHROUGH = 0b00100;
     public static final int UNDERLINED =    0b01000;
     public static final int ITALIC =        0b10000;
-    private static final int UNCACHEABLE_STYLE = OBFUSCATED | STRIKETHROUGH | UNDERLINED;
-
     private static final VertexFormat FORMAT = DefaultVertexFormat.POSITION_TEX_COLOR;
-    private static final int STRIDE = FORMAT.getIntSize();
-    private static final int COLOR_INDEX = FORMAT.getColorOffset() / Integer.BYTES;
+    private static final VertexFormat DECORATION_FORMAT = DefaultVertexFormat.POSITION_COLOR;
     private static final int ALPHA_SHIFT = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN ? 24 : 0;
 
     // this got proguarded out in vanilla so we have to duplicate it
@@ -245,7 +242,7 @@ public final class TextBatcher {
             this.nameTags = null;
         }
 
-        if (!this.batching || !cacheable(text) || (style & UNCACHEABLE_STYLE) != 0) {
+        if (!this.batching || !cacheable(text) || (style & OBFUSCATED) != 0) {
             this.flushElementBatch(textureManager);
             return Float.NaN;
         }
@@ -261,6 +258,10 @@ public final class TextBatcher {
                 if (this.appendable) {
                     if (this.nameTags == null) segment.setAlpha(alpha);
                     this.append(segment.texture, segment.vertices, x, y);
+                } else if (segment.texture == null) {
+                    GlStateManager.disableTexture();
+                    this.drawCached(segment, alpha, x, y);
+                    GlStateManager.enableTexture();
                 } else {
                     textureManager.bind(segment.texture);
                     this.drawCached(segment, alpha, x, y);
@@ -457,8 +458,22 @@ public final class TextBatcher {
         if (!this.drawingDecorations) return;
 
         this.decorationBuffer.end();
+        int[] vertices = null;
+        if (this.pendingKey != null) {
+            IntBuffer source = this.decorationBuffer.getBuffer().asIntBuffer();
+            vertices = new int[source.remaining()];
+            source.get(vertices);
+            for (int i = 0; i < vertices.length; i += DECORATION_FORMAT.getIntSize()) {
+                vertices[i] = Float.floatToRawIntBits(Float.intBitsToFloat(vertices[i]) - this.originX);
+                vertices[i + 1] = Float.floatToRawIntBits(Float.intBitsToFloat(vertices[i + 1]) - this.originY);
+            }
+            this.pendingSegments.add(new Segment(null, vertices, this.alphaByte()));
+        }
         if (this.nameTags != null) {
-            this.nameTags.decorations(this.decorationBuffer);
+            this.nameTags.text(null, this.decorationBuffer.getBuffer().asIntBuffer(), this.alphaByte());
+            this.decorationBuffer.clear();
+        } else if (this.appendable) {
+            this.append(null, vertices, this.originX, this.originY);
             this.decorationBuffer.clear();
         } else {
             GlStateManager.disableTexture();
@@ -474,8 +489,8 @@ public final class TextBatcher {
         for (int i = 0; i < text.length(); i++) {
             if (text.charAt(i) == SECTION && i + 1 < text.length()) {
                 char formatting = Character.toLowerCase(text.charAt(++i));
-                // obfuscated text changes every frame, and decorations are not part of the geometry
-                if (formatting == 'k' || formatting == 'm' || formatting == 'n') return false;
+                // obfuscated text changes every frame
+                if (formatting == 'k') return false;
             }
         }
         return true;
@@ -487,21 +502,21 @@ public final class TextBatcher {
 
     private void drawCached(Segment segment, int alpha, float x, float y) {
         if (segment.buffer != null && segment.bufferAlpha == alpha) {
-            this.draw(segment.buffer, x, y);
+            this.draw(segment.buffer, segment.format, x, y);
             return;
         }
 
         segment.setAlpha(alpha);
         if (segment.lastAlpha == alpha) {
-            if (segment.buffer == null) segment.buffer = new VertexBuffer(FORMAT);
+            if (segment.buffer == null) segment.buffer = new VertexBuffer(segment.format);
             segment.buffer.upload(this.uploadBuffer(segment.vertices));
             segment.bufferAlpha = alpha;
-            this.draw(segment.buffer, x, y);
+            this.draw(segment.buffer, segment.format, x, y);
             return;
         }
 
         segment.lastAlpha = alpha;
-        this.buffer.begin(GL11.GL_QUADS, FORMAT);
+        this.buffer.begin(GL11.GL_QUADS, segment.format);
         this.buffer.argentum$appendTranslated(segment.vertices, x, y);
         this.buffer.end();
         this.upload(this.buffer);
@@ -518,23 +533,23 @@ public final class TextBatcher {
         return this.uploadBuffer;
     }
 
-    private void draw(VertexBuffer buffer, float x, float y) {
+    private void draw(VertexBuffer buffer, VertexFormat format, float x, float y) {
         boolean pushed = this.pushBlend();
+        boolean textured = format == FORMAT;
         GlStateManager.pushMatrix();
         GlStateManager.translatef(x, y, 0.0F);
         buffer.bind();
         GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY);
-        GL11.glEnableClientState(GL11.GL_TEXTURE_COORD_ARRAY);
+        if (textured) GL11.glEnableClientState(GL11.GL_TEXTURE_COORD_ARRAY);
         GL11.glEnableClientState(GL11.GL_COLOR_ARRAY);
-        VertexFormat format = DefaultVertexFormat.POSITION_TEX_COLOR;
         int stride = format.getVertexSize();
         GL11.glVertexPointer(3, GL11.GL_FLOAT, stride, format.getOffset(0));
-        GL11.glTexCoordPointer(2, GL11.GL_FLOAT, stride, format.getUvOffset(0));
+        if (textured) GL11.glTexCoordPointer(2, GL11.GL_FLOAT, stride, format.getUvOffset(0));
         GL11.glColorPointer(4, GL11.GL_UNSIGNED_BYTE, stride, format.getColorOffset());
         buffer.draw(GL11.GL_QUADS);
         GL11.glDisableClientState(GL11.GL_COLOR_ARRAY);
         GlStateManager.clearColor();
-        GL11.glDisableClientState(GL11.GL_TEXTURE_COORD_ARRAY);
+        if (textured) GL11.glDisableClientState(GL11.GL_TEXTURE_COORD_ARRAY);
         GL11.glDisableClientState(GL11.GL_VERTEX_ARRAY);
         buffer.unbind();
         GlStateManager.popMatrix();
@@ -552,7 +567,7 @@ public final class TextBatcher {
             this.elementBuffers.put(texture, buffer);
         }
         if (buffer.getVertexCount() == 0) {
-            buffer.begin(GL11.GL_QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            buffer.begin(GL11.GL_QUADS, texture == null ? DECORATION_FORMAT : FORMAT);
         }
         buffer.argentum$appendTranslated(vertices, x, y);
     }
@@ -563,8 +578,14 @@ public final class TextBatcher {
             if (buffer.getVertexCount() == 0) continue;
 
             buffer.end();
-            textureManager.bind(entry.getKey());
-            this.upload(buffer);
+            if (entry.getKey() == null) {
+                GlStateManager.disableTexture();
+                this.upload(buffer);
+                GlStateManager.enableTexture();
+            } else {
+                textureManager.bind(entry.getKey());
+                this.upload(buffer);
+            }
         }
     }
 
@@ -618,6 +639,7 @@ public final class TextBatcher {
 
     private static final class Segment {
         private final Identifier texture;
+        private final VertexFormat format;
         private final int[] vertices;
         private int verticesAlpha;
         private int lastAlpha;
@@ -626,6 +648,7 @@ public final class TextBatcher {
 
         private Segment(Identifier texture, int[] vertices, int alpha) {
             this.texture = texture;
+            this.format = texture == null ? DECORATION_FORMAT : FORMAT;
             this.vertices = vertices;
             this.verticesAlpha = alpha;
             this.lastAlpha = alpha;
@@ -633,7 +656,8 @@ public final class TextBatcher {
 
         private void setAlpha(int alpha) {
             if (alpha == this.verticesAlpha) return;
-            for (int i = COLOR_INDEX; i < this.vertices.length; i += STRIDE) {
+            int stride = this.format.getIntSize();
+            for (int i = this.format.getColorOffset() / Integer.BYTES; i < this.vertices.length; i += stride) {
                 this.vertices[i] = this.vertices[i] & ~(0xFF << ALPHA_SHIFT) | alpha << ALPHA_SHIFT;
             }
             this.verticesAlpha = alpha;

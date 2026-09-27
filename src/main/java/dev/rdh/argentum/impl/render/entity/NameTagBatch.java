@@ -30,6 +30,7 @@ public final class NameTagBatch {
     private static final VertexFormat FORMAT = DefaultVertexFormat.PARTICLE;
     private static final int STRIDE = FORMAT.getIntSize();
     private static final int TEXT_STRIDE = DefaultVertexFormat.POSITION_TEX_COLOR.getIntSize();
+    private static final int DECORATION_STRIDE = DefaultVertexFormat.POSITION_COLOR.getIntSize();
     private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
     private static final int ALPHA_SHIFT = LITTLE_ENDIAN ? 24 : 0;
     private static final Comparator<Pass> ORDER = Comparator.comparingInt(Pass::order);
@@ -157,7 +158,10 @@ public final class NameTagBatch {
     }
 
     public void text(Identifier location, int[] vertices, int length, float x, float y, int alpha) {
-        Pass pass = this.pass(this.texture(location));
+        boolean textured = location != null;
+        Pass pass = this.pass(textured ? this.texture(location) : 0);
+        int stride = textured ? TEXT_STRIDE : DECORATION_STRIDE;
+        int color = textured ? 5 : 3;
         Matrix4fc matrix = this.matrices;
         float m00 = matrix.m00(), m01 = matrix.m01(), m02 = matrix.m02();
         float m10 = matrix.m10(), m11 = matrix.m11(), m12 = matrix.m12();
@@ -167,19 +171,19 @@ public final class NameTagBatch {
         int alphaBits = alpha << ALPHA_SHIFT;
         int alphaMask = ~(0xFF << ALPHA_SHIFT);
         int light = this.packedLight();
-        int count = length / TEXT_STRIDE;
+        int count = length / stride;
         int[] out = this.vertices(count);
         for (int vertex = 0; vertex < count; vertex++) {
-            int from = vertex * TEXT_STRIDE;
+            int from = vertex * stride;
             int to = vertex * STRIDE;
             float vx = Float.intBitsToFloat(vertices[from]);
             float vy = Float.intBitsToFloat(vertices[from + 1]);
             out[to] = Float.floatToRawIntBits(m00 * vx + m10 * vy + m30);
             out[to + 1] = Float.floatToRawIntBits(m01 * vx + m11 * vy + m31);
             out[to + 2] = Float.floatToRawIntBits(m02 * vx + m12 * vy + m32);
-            out[to + 3] = vertices[from + 3];
-            out[to + 4] = vertices[from + 4];
-            out[to + 5] = vertices[from + 5] & alphaMask | alphaBits;
+            out[to + 3] = textured ? vertices[from + 3] : 0;
+            out[to + 4] = textured ? vertices[from + 4] : 0;
+            out[to + 5] = vertices[from + color] & alphaMask | alphaBits;
             out[to + 6] = light;
         }
         pass.buffer.argentum$appendVertices(out, count * STRIDE);
@@ -190,10 +194,6 @@ public final class NameTagBatch {
         if (this.source.length < length) this.source = new int[length];
         vertices.get(this.source, 0, length);
         this.text(location, this.source, length, 0.0F, 0.0F, alpha);
-    }
-
-    public void decorations(BufferBuilder buffer) {
-        if (buffer.getVertexCount() >= 4) this.quads(this.pass(0), buffer, false);
     }
 
     public boolean capture(BufferBuilder buffer) {
