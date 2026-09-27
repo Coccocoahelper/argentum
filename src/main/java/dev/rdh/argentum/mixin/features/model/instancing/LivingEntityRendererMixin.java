@@ -1,5 +1,6 @@
 package dev.rdh.argentum.mixin.features.model.instancing;
 
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.client.render.entity.LivingEntityRenderer;
@@ -17,7 +18,6 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import dev.rdh.argentum.impl.render.entity.instancing.EntityCapture;
 import dev.rdh.argentum.impl.render.entity.instancing.EntityInstancing;
 
@@ -49,7 +49,7 @@ public abstract class LivingEntityRendererMixin {
                 && !entity.shouldRenderOnFire()
                 && !(EntityInstancing.overlayPassDetected() && celeritas$isTinted(entity));
         Identifier texture = eligible ? ((EntityRendererAccessor)this).celeritas$getTextureLocation(entity) : null;
-        try (EntityCapture capture = eligible ? instancing.beginEntity(
+        try (EntityCapture _ = eligible ? instancing.beginEntity(
                 this.model, texture, player, player || !this.layers.isEmpty(),
                 EntityInstancing.packedLight(entity, tickDelta), entity.ticks + tickDelta,
                 0.0F, 0.0F, 0.0F, 0.0F) : null) {
@@ -62,18 +62,17 @@ public abstract class LivingEntityRendererMixin {
         return entity.damagedTimer > 0 || entity.deathTicks > 0;
     }
 
-    // not TAIL: the "no overlay at all" branch is compiled to the last return in the method, so TAIL would bind to
-    // the one path that leaves tintBuffer holding the previous entity's colour
-    @Inject(method = "setupOverlayColor(Lnet/minecraft/entity/living/LivingEntity;FZ)Z", at = @At("RETURN"))
-    private void celeritas$captureOverlayColor(LivingEntity entity, float tickDelta, boolean alwaysRender,
-            CallbackInfoReturnable<Boolean> cir) {
+    // this can't be TAIL because javac did something weird to the code flow in this method
+    @ModifyReturnValue(method = "setupOverlayColor(Lnet/minecraft/entity/living/LivingEntity;FZ)Z", at = @At("RETURN"))
+    private boolean celeritas$captureOverlayColor(boolean overlay) {
         EntityCapture capture = EntityCapture.current();
-        if (capture != null && cir.getReturnValueZ()) {
+        if (capture != null && overlay) {
             capture.setOverlayColor(this.tintBuffer.get(0), this.tintBuffer.get(1),
                     this.tintBuffer.get(2), this.tintBuffer.get(3));
         } else if (capture != null) {
             capture.setOverlayColor(0.0F, 0.0F, 0.0F, 0.0F);
         }
+        return overlay;
     }
 
     @Inject(method = "renderNameTag(Lnet/minecraft/entity/living/LivingEntity;DDD)V", at = @At("HEAD"), cancellable = true)
