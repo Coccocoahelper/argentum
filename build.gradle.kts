@@ -12,6 +12,9 @@ val testmod = sourceSets.create("testmod")
 testmod.compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
 testmod.runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
 
+val all = sourceSets.create("all")
+all.runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
+
 gradle.taskGraph.whenReady {
     allTasks.filter { it.name == "net.fabricmc.devlaunchinjector.Main.main()" }.forEach {
         it.notCompatibleWithConfigurationCache("loom weird?")
@@ -25,8 +28,19 @@ loom {
         create("argentum-font-test") {
             sourceSet(testmod)
         }
+        create("argentum-extras") {
+            sourceSet("main", ":extras")
+        }
+        create("cera") {
+            sourceSet("main", ":cera")
+        }
     }
     runs {
+        create("allClient") {
+            inherit(getByName("client"))
+            sourceSet = all.name
+            displayName = "Client (All Mods)"
+        }
         create("fontTestClient") {
             inherit(getByName("client"))
             sourceSet = testmod.name
@@ -81,6 +95,9 @@ loom {
 dependencies {
     include(api("org.joml:joml:1.10.5")!!)
     include(api("org.embeddedt.celeritas:celeritas-common:${property("celeritas_version")}")!!)
+
+    "allRuntimeOnly"(project(path = ":extras", configuration = "namedElements"))
+    "allRuntimeOnly"(project(path = ":cera", configuration = "namedElements"))
 }
 
 tasks.named("runFontTestClient") {
