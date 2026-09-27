@@ -4,8 +4,9 @@ plugins {
 }
 
 version = providers.environmentVariable("GITHUB_SHA")
-    .map { "1.0.0-g${it.take(7)}" }
-    .getOrElse("1.0.0")
+    .flatMap { sha -> providers.gradleProperty("mod_version").map { "$it-g${sha.take(7)}" } }
+    .orElse(providers.gradleProperty("mod_version"))
+    .get()
 
 java.toolchain {
     languageVersion = JavaLanguageVersion.of(25)
