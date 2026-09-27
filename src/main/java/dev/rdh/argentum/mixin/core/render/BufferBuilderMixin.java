@@ -27,6 +27,9 @@ public abstract class BufferBuilderMixin implements BufferBuilderExtension {
     @Shadow
     public abstract void vertices(int[] vertices);
 
+    @Shadow
+    protected abstract void grow(int size);
+
     @Inject(method = "nextVertex", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/vertex/BufferBuilder;grow(I)V"))
     private void celeritas$syncBufferPosition(CallbackInfo ci) {
         this.intBuffer.position(this.vertexCount * this.format.getIntSize());
@@ -35,6 +38,17 @@ public abstract class BufferBuilderMixin implements BufferBuilderExtension {
     @Override
     public IntBuffer argentum$rawIntBuffer() {
         return this.intBuffer;
+    }
+
+    @Override
+    public void argentum$appendVertices(int[] vertices, int length) {
+        int stride = this.format.getIntSize();
+        int start = this.vertexCount * stride;
+        this.intBuffer.position(start);
+        this.grow(length);
+        this.intBuffer.position(start);
+        this.intBuffer.put(vertices, 0, length);
+        this.vertexCount += length / stride;
     }
 
     @Override

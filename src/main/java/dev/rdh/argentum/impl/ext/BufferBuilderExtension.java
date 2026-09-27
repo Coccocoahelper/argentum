@@ -7,6 +7,10 @@ public interface BufferBuilderExtension {
         throw new UnsupportedOperationException();
     }
 
+    default void argentum$appendVertices(int[] vertices, int length) {
+        throw new UnsupportedOperationException();
+    }
+
     default IntBuffer argentum$rawIntBuffer() {
         throw new UnsupportedOperationException();
     }

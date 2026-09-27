@@ -29,13 +29,18 @@ public final class NameTagBatch {
     private static final int STACK_SIZE = 32;
     private static final VertexFormat FORMAT = DefaultVertexFormat.PARTICLE;
     private static final int STRIDE = FORMAT.getIntSize();
+    private static final int TEXT_STRIDE = DefaultVertexFormat.POSITION_TEX_COLOR.getIntSize();
     private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+    private static final int ALPHA_SHIFT = LITTLE_ENDIAN ? 24 : 0;
     private static final Comparator<Pass> ORDER = Comparator.comparingInt(Pass::order);
 
     private final Matrix4fStack matrices = new Matrix4fStack(STACK_SIZE);
     private final Matrix4f multiplied = new Matrix4f();
     private final Vector3f position = new Vector3f();
-    private final int[] quad = new int[4 * STRIDE];
+    private int[] vertices = new int[256 * STRIDE];
+    private int[] source = new int[256 * TEXT_STRIDE];
+    private Identifier lastLocation;
+    private int lastTexture;
     private final List<Pass> passes = new ArrayList<>();
     private final BufferUploader uploader = new BufferUploader();
     private Matrix4fc camera;
@@ -62,6 +67,7 @@ public final class NameTagBatch {
     public void begin(Matrix4fc camera) {
         this.discard();
         this.camera = camera;
+        this.lastLocation = null;
         this.active = Argentum.CONFIG.nameTagBatching && Argentum.CONFIG.fontBatching;
     }
 
@@ -150,26 +156,44 @@ public final class NameTagBatch {
         return this.canCapture(true);
     }
 
-    public void text(Identifier location, int[] vertices, float x, float y) {
-        TextureManager textureManager = Minecraft.getInstance().getTextureManager();
-        Texture texture = textureManager.get(location);
-        if (texture == null) {
-            textureManager.bind(location);
-            texture = textureManager.get(location);
-        }
-
-        Pass pass = this.pass(texture.getGlId());
+    public void text(Identifier location, int[] vertices, int length, float x, float y, int alpha) {
+        Pass pass = this.pass(this.texture(location));
+        Matrix4fc matrix = this.matrices;
+        float m00 = matrix.m00(), m01 = matrix.m01(), m02 = matrix.m02();
+        float m10 = matrix.m10(), m11 = matrix.m11(), m12 = matrix.m12();
+        float m30 = matrix.m30() + m00 * x + m10 * y;
+        float m31 = matrix.m31() + m01 * x + m11 * y;
+        float m32 = matrix.m32() + m02 * x + m12 * y;
+        int alphaBits = alpha << ALPHA_SHIFT;
+        int alphaMask = ~(0xFF << ALPHA_SHIFT);
         int light = this.packedLight();
-        int stride = DefaultVertexFormat.POSITION_TEX_COLOR.getIntSize();
-        for (int offset = 0; offset + 4 * stride <= vertices.length; offset += 4 * stride) {
-            for (int vertex = 0; vertex < 4; vertex++) {
-                int source = offset + vertex * stride;
-                this.vertex(vertex, Float.intBitsToFloat(vertices[source]) + x,
-                        Float.intBitsToFloat(vertices[source + 1]) + y, Float.intBitsToFloat(vertices[source + 2]),
-                        vertices[source + 3], vertices[source + 4], vertices[source + 5], light);
-            }
-            pass.buffer.vertices(this.quad);
+        int count = length / TEXT_STRIDE;
+        int[] out = this.vertices(count);
+        for (int vertex = 0; vertex < count; vertex++) {
+            int from = vertex * TEXT_STRIDE;
+            int to = vertex * STRIDE;
+            float vx = Float.intBitsToFloat(vertices[from]);
+            float vy = Float.intBitsToFloat(vertices[from + 1]);
+            out[to] = Float.floatToRawIntBits(m00 * vx + m10 * vy + m30);
+            out[to + 1] = Float.floatToRawIntBits(m01 * vx + m11 * vy + m31);
+            out[to + 2] = Float.floatToRawIntBits(m02 * vx + m12 * vy + m32);
+            out[to + 3] = vertices[from + 3];
+            out[to + 4] = vertices[from + 4];
+            out[to + 5] = vertices[from + 5] & alphaMask | alphaBits;
+            out[to + 6] = light;
         }
+        pass.buffer.argentum$appendVertices(out, count * STRIDE);
+    }
+
+    public void text(Identifier location, IntBuffer vertices, int alpha) {
+        int length = vertices.remaining();
+        if (this.source.length < length) this.source = new int[length];
+        vertices.get(this.source, 0, length);
+        this.text(location, this.source, length, 0.0F, 0.0F, alpha);
+    }
+
+    public void decorations(BufferBuilder buffer) {
+        if (buffer.getVertexCount() >= 4) this.quads(this.pass(0), buffer, false);
     }
 
     public boolean capture(BufferBuilder buffer) {
@@ -182,23 +206,8 @@ public final class NameTagBatch {
         }
 
         buffer.end();
-        int count = buffer.getVertexCount();
-        if (count >= 4) {
-            Pass pass = this.pass(textured ? GlStateManager.TEXTURES[0].texture : 0);
-            IntBuffer source = buffer.getBuffer().asIntBuffer();
-            int stride = format.getIntSize();
-            int color = textured ? 5 : 3;
-            int light = this.packedLight();
-            for (int first = 0; first + 4 <= count; first += 4) {
-                for (int vertex = 0; vertex < 4; vertex++) {
-                    int offset = (first + vertex) * stride;
-                    this.vertex(vertex, Float.intBitsToFloat(source.get(offset)),
-                            Float.intBitsToFloat(source.get(offset + 1)), Float.intBitsToFloat(source.get(offset + 2)),
-                            textured ? source.get(offset + 3) : 0, textured ? source.get(offset + 4) : 0,
-                            source.get(offset + color), light);
-                }
-                pass.buffer.vertices(this.quad);
-            }
+        if (buffer.getVertexCount() >= 4) {
+            this.quads(this.pass(textured ? GlStateManager.TEXTURES[0].texture : 0), buffer, textured);
         }
         buffer.clear();
         return true;
@@ -277,16 +286,46 @@ public final class NameTagBatch {
         return LITTLE_ENDIAN ? u | v << 16 : v | u << 16;
     }
 
-    private void vertex(int index, float x, float y, float z, int u, int v, int color, int light) {
-        this.matrices.transformPosition(this.position.set(x, y, z));
-        int offset = index * STRIDE;
-        this.quad[offset] = Float.floatToRawIntBits(this.position.x);
-        this.quad[offset + 1] = Float.floatToRawIntBits(this.position.y);
-        this.quad[offset + 2] = Float.floatToRawIntBits(this.position.z);
-        this.quad[offset + 3] = u;
-        this.quad[offset + 4] = v;
-        this.quad[offset + 5] = color;
-        this.quad[offset + 6] = light;
+    private void quads(Pass pass, BufferBuilder buffer, boolean textured) {
+        int count = buffer.getVertexCount() / 4 * 4;
+        IntBuffer source = buffer.getBuffer().asIntBuffer();
+        int stride = buffer.getFormat().getIntSize();
+        int color = textured ? 5 : 3;
+        int light = this.packedLight();
+        int[] out = this.vertices(count);
+        for (int vertex = 0; vertex < count; vertex++) {
+            int from = vertex * stride;
+            int to = vertex * STRIDE;
+            this.matrices.transformPosition(this.position.set(Float.intBitsToFloat(source.get(from)),
+                    Float.intBitsToFloat(source.get(from + 1)), Float.intBitsToFloat(source.get(from + 2))));
+            out[to] = Float.floatToRawIntBits(this.position.x);
+            out[to + 1] = Float.floatToRawIntBits(this.position.y);
+            out[to + 2] = Float.floatToRawIntBits(this.position.z);
+            out[to + 3] = textured ? source.get(from + 3) : 0;
+            out[to + 4] = textured ? source.get(from + 4) : 0;
+            out[to + 5] = source.get(from + color);
+            out[to + 6] = light;
+        }
+        pass.buffer.argentum$appendVertices(out, count * STRIDE);
+    }
+
+    private int[] vertices(int count) {
+        if (this.vertices.length < count * STRIDE) this.vertices = new int[count * STRIDE];
+        return this.vertices;
+    }
+
+    private int texture(Identifier location) {
+        if (location != this.lastLocation) {
+            TextureManager textureManager = Minecraft.getInstance().getTextureManager();
+            Texture texture = textureManager.get(location);
+            if (texture == null) {
+                textureManager.bind(location);
+                texture = textureManager.get(location);
+            }
+            this.lastLocation = location;
+            this.lastTexture = texture.getGlId();
+        }
+        return this.lastTexture;
     }
 
     private Pass pass(int texture) {

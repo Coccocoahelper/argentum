@@ -44,7 +44,7 @@ public final class GuiItemAtlas {
 
     public boolean initialize() {
         var capabilities = GL.getCapabilities();
-        this.core = capabilities.OpenGL30;
+        this.core = capabilities.OpenGL30 || capabilities.GL_ARB_framebuffer_object;
         if (!this.core && !capabilities.GL_EXT_framebuffer_object) {
             return false;
         }

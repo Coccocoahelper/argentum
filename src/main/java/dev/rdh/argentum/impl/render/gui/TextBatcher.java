@@ -240,12 +240,13 @@ public final class TextBatcher {
         this.pendingSegments.clear();
         this.appendable = false;
         this.nameTags = NameTagBatch.capturing();
-
-        if (!this.batching || !cacheable(text) || (style & UNCACHEABLE_STYLE) != 0
-                || this.nameTags != null && !this.nameTags.canCaptureText()) {
-            this.flushElementBatch(textureManager);
-            if (this.nameTags != null) this.nameTags.flush();
+        if (this.nameTags != null && !this.nameTags.canCaptureText()) {
+            this.nameTags.flush();
             this.nameTags = null;
+        }
+
+        if (!this.batching || !cacheable(text) || (style & UNCACHEABLE_STYLE) != 0) {
+            this.flushElementBatch(textureManager);
             return Float.NaN;
         }
         this.appendable = this.elementBatchDepth > 0 || this.nameTags != null;
@@ -258,7 +259,7 @@ public final class TextBatcher {
             int alpha = this.alphaByte();
             for (Segment segment : geometry.segments()) {
                 if (this.appendable) {
-                    segment.setAlpha(alpha);
+                    if (this.nameTags == null) segment.setAlpha(alpha);
                     this.append(segment.texture, segment.vertices, x, y);
                 } else {
                     textureManager.bind(segment.texture);
@@ -296,6 +297,7 @@ public final class TextBatcher {
         this.pendingSegments.clear();
         this.appendable = false;
         this.batching = false;
+        this.nameTags = null;
     }
 
     public float drawBasicGlyph(int character, boolean italic, float x, float y,
@@ -399,7 +401,10 @@ public final class TextBatcher {
         if (!this.drawing) return;
 
         this.buffer.end();
-        if (this.pendingKey == null) {
+        if (this.pendingKey == null && this.nameTags != null) {
+            this.nameTags.text(this.texture, this.buffer.getBuffer().asIntBuffer(), this.alphaByte());
+            this.buffer.clear();
+        } else if (this.pendingKey == null) {
             this.upload(this.buffer);
         } else {
             IntBuffer source = this.buffer.getBuffer().asIntBuffer();
@@ -452,9 +457,14 @@ public final class TextBatcher {
         if (!this.drawingDecorations) return;
 
         this.decorationBuffer.end();
-        GlStateManager.disableTexture();
-        this.upload(this.decorationBuffer);
-        GlStateManager.enableTexture();
+        if (this.nameTags != null) {
+            this.nameTags.decorations(this.decorationBuffer);
+            this.decorationBuffer.clear();
+        } else {
+            GlStateManager.disableTexture();
+            this.upload(this.decorationBuffer);
+            GlStateManager.enableTexture();
+        }
         this.drawingDecorations = false;
     }
 
@@ -533,7 +543,7 @@ public final class TextBatcher {
 
     private void append(Identifier texture, int[] vertices, float x, float y) {
         if (this.nameTags != null) {
-            this.nameTags.text(texture, vertices, x, y);
+            this.nameTags.text(texture, vertices, vertices.length, x, y, this.alphaByte());
             return;
         }
         BufferBuilder buffer = this.elementBuffers.get(texture);
