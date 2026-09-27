@@ -36,6 +36,12 @@ jobs:
       -   name: do the build
           run: ./gradlew assemble --stacktrace --no-daemon
 
+      -   name: publish Argentum
+          if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+          env:
+            TAUMC_MAVEN_PASSWORD: ${{ secrets.TAUMC_MAVEN_PASSWORD }}
+          run: ./gradlew publish --stacktrace --no-daemon
+
       -   name: upload artifacts
           uses: actions/upload-artifact@v7
           with:

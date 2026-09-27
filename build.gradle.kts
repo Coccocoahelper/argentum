@@ -1,8 +1,11 @@
 plugins {
     id("mc")
+    `maven-publish`
 }
 
-version = "1.0.0"
+version = providers.environmentVariable("GITHUB_SHA")
+    .map { "1.0.0-g${it.take(7)}" }
+    .getOrElse("1.0.0")
 
 java.toolchain {
     languageVersion = JavaLanguageVersion.of(25)
@@ -199,4 +202,20 @@ tasks.remapJar {
     manifest.attributes(
         "Celeritas-Version" to project.property("celeritas_version") as String
     )
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            artifact(tasks.remapJar)
+        }
+    }
+    repositories {
+        maven("https://maven.taumc.org/releases") {
+            credentials(PasswordCredentials::class) {
+                username = "rdh"
+                password = System.getenv("TAUMC_MAVEN_PASSWORD")
+            }
+        }
+    }
 }

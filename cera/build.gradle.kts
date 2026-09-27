@@ -2,7 +2,7 @@ plugins {
     id("mc")
 }
 
-version = "1.0.0"
+version = rootProject.version
 
 loom {
     accessWidenerPath = file("src/main/resources/cera.classtweaker")

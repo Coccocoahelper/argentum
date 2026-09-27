@@ -2,6 +2,6 @@ plugins {
     id("mc")
 }
 
-version = "1.0.0"
+version = rootProject.version
 
 base.archivesName = "${rootProject.name}-${project.name}"
