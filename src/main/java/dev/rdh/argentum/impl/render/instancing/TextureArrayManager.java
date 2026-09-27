@@ -32,9 +32,9 @@ public final class TextureArrayManager {
 
     public boolean initialize() {
         var capabilities = GL.getCapabilities();
-        this.core = capabilities.OpenGL30;
-        if (!this.core && !(capabilities.GL_EXT_texture_array
-                && capabilities.GL_EXT_framebuffer_object
+        this.core = capabilities.OpenGL30 || capabilities.GL_ARB_framebuffer_object;
+        if (!capabilities.OpenGL30 && !(capabilities.GL_EXT_texture_array
+                && (capabilities.GL_ARB_framebuffer_object || capabilities.GL_EXT_framebuffer_object)
                 && capabilities.GL_EXT_gpu_shader4)) {
             return false;
         }
