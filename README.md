@@ -16,6 +16,7 @@ A non-exhaustive list of features that currently exist:
 - Item rendering:
   - Glint instancing & caching
   - Item atlas creation
+  - Item baking
 - Font rendering:
   - Batching for lots of text
   - Cache text width, height, and geometry
@@ -37,6 +38,7 @@ Features that may be added in the future are:
   - Batch items in the inventory
   - Batch stack amount text in the inventory
   - Batch the frametime graph elements
+  - Batch more draw calls in the tab (player heads?, text?)
 
 A companion mod also exists under the [`extras`](/extras) folder, providing extra rendering customization and eye candy.
 
