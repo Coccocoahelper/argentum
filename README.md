@@ -19,7 +19,9 @@ A non-exhaustive list of features that currently exist:
 - Font rendering:
   - Batching for lots of text
   - Cache text width, height, and geometry
-- An optimized cloud renderer
+- Miscellaneous world rendering:
+  - Optimized cloud renderer
+  - Weather (rain and snow) instancing
 - HUD rendering:
   - Join draw calls for many inventory elements
 - Entity and particle occlusion culling
@@ -34,6 +36,7 @@ Features that may be added in the future are:
   - Join draw calls and cache the durability bar elements
   - Batch items in the inventory
   - Batch stack amount text in the inventory
+  - Batch the frametime graph elements
 
 A companion mod also exists under the [`extras`](/extras) folder, providing extra rendering customization and eye candy.
 
