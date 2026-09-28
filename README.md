@@ -13,7 +13,7 @@ A non-exhaustive list of features that currently exist:
   - Instancing for block entities
   - Baking for block entities (chests and ender chests, signs with and without text, maps, item frames); overrides instancing for the supported block entities
   - Lightmap caching
-- Optimized item rendering:
+- Item rendering:
   - Glint instancing & caching
   - Item atlas creation
 - Font rendering:
@@ -27,6 +27,13 @@ A non-exhaustive list of features that currently exist:
   - Decoupled frame presentation (presents frames at a given frequency instead of every frame, thus mitigating buffer swapping bottlenecks on stronger GPUs)
   - Greedy render thread (avoids Thread.yield() calls, can help on weaker GPUs at the cost of new blocks being briefly invisible)
 - A Celeritas-based video settings menu
+
+Features that may be added in the future are:
+
+- HUD rendering:
+  - Join draw calls and cache the durability bar elements
+  - Batch items in the inventory
+  - Batch stack amount text in the inventory
 
 A companion mod also exists under the [`extras`](/extras) folder, providing extra rendering customization and eye candy.
 
